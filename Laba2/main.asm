@@ -7,41 +7,15 @@ X dw 5429h
 Y dw 7844h
 Z dw 0AD43h
 Q dw 5622h
-L dw 0
+L dw ?
 M dw ?
 R dw ?
 
 .code
 ExitProcess PROTO STDCALL :DWORD
 
-Start:
-    mov ecx, 4
-    mov esi, offset X
-    xor eax, eax
-
-body:
-    inc word ptr [esi]
-    add ax, [esi]
-    add esi, 2
-    loop body
-
-    mov L, ax
-
-    mov ax, L
-    and ax, X
-    mov bx, ax
-    mov ax, L
-    and ax, Y
-    sub bx, ax
-    mov M, bx
-
-    mov ax, M
-    cmp ax, 921Bh
-    jge pod1
-    call pod2
-    jmp after_party
-
-pod1 proc
+; R = M/2 - 12B9h
+Subprogram1 PROC
     mov ax, M
     mov dx, 0
     mov bx, 2
@@ -49,9 +23,10 @@ pod1 proc
     sub ax, 12B9h
     mov R, ax
     ret
-pod1 endp
+Subprogram1 ENDP
 
-pod2 proc
+; R = M - Q'/2
+Subprogram2 PROC
     mov ax, Q
     inc ax
     mov dx, 0
@@ -62,23 +37,55 @@ pod2 proc
     sub ax, bx
     mov R, ax
     ret
-pod2 endp
+Subprogram2 ENDP
 
-after_party:
-    test R, 1
-    jz addr1
-    call addr2
-    jmp exit
+Start:
+    mov ecx, 4
+    mov esi, offset X
+    xor ax, ax
+
+cycle:
+    inc word ptr [esi]
+    add ax, [esi]
+    add esi, 2
+    loop cycle
+
+    ;  M = (L & X) - (L & Y)
+    mov [L], ax
+    mov ax, L
+    and ax, X
+    mov bx, ax
+    mov ax, L
+    and ax, Y
+    sub bx, ax
+    mov [M], bx
+    ; if M < 921Bh
+    cmp M, 921Bh
+    jge call_subprg1
+    call Subprogram2
+    jmp continue
+
+call_subprg1:
+    ; (M >= 921Bh)
+    call Subprogram1
+
+continue:
+    mov [R], ax
+    ; Чётность R
+    test ax, 1
+    jnz addr2
 
 addr1:
-    or R, 009Fh
-    ret
+    mov ax, R
+    or ax, 009Fh
+    jmp finish
 
 addr2:
-    dec R
-    ret
+    mov ax, R
+    dec ax
 
-exit:
-    invoke ExitProcess, R
+finish:
+    ;mov [R], ax
+    invoke ExitProcess, ax
 
 END Start
